@@ -14,6 +14,18 @@ class Building extends Model
     use HasFactory;
 
     /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
+    protected $fillable = [
+        'name',
+        'latitude',
+        'longitude',
+        'user_id',
+    ];
+
+    /**
      * Get the user that owns the building.
      */
     public function user(): BelongsTo
