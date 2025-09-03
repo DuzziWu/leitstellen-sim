@@ -15,6 +15,12 @@
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                         {{ __('Dashboard') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('buildings.index')" :active="request()->routeIs('buildings.index')">
+                        {{ __('Meine Wachen') }}
+                    </x-nav-link>
+                    <x-nav-link :href="route('missions.index')" :active="request()->routeIs('missions.index')">
+                        {{ __('Einsatzkarte') }}
+                    </x-nav-link>
                 </div>
             </div>
 

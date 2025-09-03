@@ -13,6 +13,17 @@ class Vehicle extends Model
     use HasFactory;
 
     /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
+    protected $fillable = [
+        'user_id',
+        'building_id',
+        'vehicle_type_id',
+    ];
+
+    /**
      * Get the user that owns the vehicle.
      */
     public function user(): BelongsTo
