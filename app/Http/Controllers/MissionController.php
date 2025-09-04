@@ -2,9 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Mission;
-use App\Models\MissionType;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Models\Mission;
+use App\Models\Building;
+use App\Models\MissionType;
+use Illuminate\Support\Facades\Auth;
+
 
 class MissionController extends Controller
 {
@@ -13,14 +17,22 @@ class MissionController extends Controller
      */
     public function index()
     {
-        $user = auth()->user();
-        $userLat = $user->city_latitude;
-        $userLon = $user->city_longitude;
+        $user = Auth::user();
+        $missions = Mission::where('status', 'pending')
+            ->with('missionType')
+            ->get();
+        $buildings = Building::where('user_id', $user->id)->get();
 
-        $missions = Mission::with('missionType')->where('status', 'pending')->get();
-        $buildings = auth()->user()->buildings;
+        // Definiere hier den Radius für die Einsatzgenerierung
+        $MISSION_RADIUS_KM = 3; 
 
-        return view('missions.index', compact('missions', 'buildings', 'userLat', 'userLon'));
+        return view('missions.index', [
+            'userLat' => $user->city_latitude,
+            'userLon' => $user->city_longitude,
+            'missions' => $missions,
+            'buildings' => $buildings,
+            'missionRadiusKm' => $MISSION_RADIUS_KM, // Übergeben Sie den Radius an die View
+        ]);
     }
 
     public function storeBuilding()
@@ -36,7 +48,7 @@ class MissionController extends Controller
         $baseLon = $user->city_longitude;
 
         // Radius in Kilometern, in dem Einsätze generiert werden sollen
-        $radiusInKm = 5;
+        $radiusInKm = 3;
 
         // Zufällige Verschiebung für Längen- und Breitengrad berechnen
         $latOffset = ($radiusInKm / 111.3) * (rand(0, 200) - 100) / 100; // Ungefähre Umrechnung km zu Breitengraden

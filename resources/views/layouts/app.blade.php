@@ -13,8 +13,8 @@
 
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
 
-        <link rel="stylesheet" href="/build/assets/app-CSkXTMq_.css">
-        <script src="/build/assets/app-DtCVKgHt.js"></script>
+        <link rel="stylesheet" href="assets/app-CSkXTMq_.css">
+        <script src="assets/app-DtCVKgHt.js"></script>
 
         <script>
             // Check for dark mode preference
