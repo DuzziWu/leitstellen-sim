@@ -1,7 +1,13 @@
-import './bootstrap';
+import { initializeMap } from './map.js';
 
-import Alpine from 'alpinejs';
+document.addEventListener('DOMContentLoaded', function () {
+    const body = document.body;
+    const userLat = body.dataset.userLat;
+    const userLon = body.dataset.userLon;
 
-window.Alpine = Alpine;
-
-Alpine.start();
+    if (userLat && userLon) {
+        initializeMap(parseFloat(userLat), parseFloat(userLon));
+    } else {
+        console.error('Fehler: Benutzerkoordinaten nicht verfügbar.');
+    }
+});
