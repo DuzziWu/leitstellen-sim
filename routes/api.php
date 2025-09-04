@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\PoiController;
 use Illuminate\Http\Request;
+use App\Models\FireStation;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -20,3 +21,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 Route::get('/pois', [PoiController::class, 'index']);
+
+Route::get('/stations', function () {
+    return FireStation::all();
+});
