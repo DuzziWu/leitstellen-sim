@@ -12,8 +12,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     
-    <link rel="stylesheet" href="/.vite/assets/app.css">
-    <script src="/.vite/assets/app.js" defer></script>
+    <link rel="stylesheet" href="assets/app-CSkXTMq_.css">
+    <script src="assets/app-DtCVKgHt.js"></script>
 
     <style>
         body, html {
@@ -119,6 +119,76 @@
             font-size: 18px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
         }
+
+        .building-sidebar {
+            position: absolute;
+            top: 0;
+            right: -420px; /* Startposition: außerhalb des Bildschirms */
+            width: 400px;
+            height: 100vh;
+            background-color: rgba(44, 62, 80, 0.95);
+            color: white;
+            padding: 20px;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.5);
+            z-index: 2000; /* Stelle sicher, dass die Sidebar über allem liegt */
+            transition: right 0.3s ease-in-out;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .building-sidebar.open {
+            right: 0; /* Endposition: sichtbar */
+        }
+
+        .close-sidebar-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .form-group input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box; /* Stellt sicher, dass Padding in der Breite enthalten ist */
+            color: black;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 10px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            opacity: 0.5;
+            transition: background-color 0.3s ease;
+        }
+
+        .submit-btn:hover:enabled {
+            background-color: #2980b9;
+        }
+
+        .submit-btn:enabled {
+            opacity: 1;
+        }
         
     </style>
 </head>
@@ -147,6 +217,33 @@
                 <i class="fa-solid fa-triangle-exclamation"></i>
             </button>
         </form>
+        <button id="showRadiusBtn" class="control-button" title="Radius anzeigen/ausblenden">
+            <i class="fa-solid fa-circle-notch"></i>
+        </button>
+    </div>
+
+    <div id="building-sidebar" class="building-sidebar">
+        <button id="close-sidebar" class="close-sidebar-btn">&times;</button>
+        <h3>Neue Wache bauen</h3>
+        <p>Wähle einen Standort auf der Karte aus.</p>
+        
+        <form id="building-form" method="POST" action="{{ route('buildings.store.from_map') }}">
+            @csrf
+            <div class="form-group">
+                <label for="building-name">Name der Wache:</label>
+                <input type="text" id="building-name" name="name" required>
+            </div>
+
+            <div class="form-group">
+                <label for="building-address">Adresse:</label>
+                <input type="text" id="building-address" name="address">
+            </div>
+            
+            <input type="hidden" id="building-lat" name="latitude">
+            <input type="hidden" id="building-lon" name="longitude">
+            
+            <button type="submit" class="submit-btn" id="submit-building-btn" disabled>Wache bauen</button>
+        </form>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
@@ -156,7 +253,8 @@
         var buildings = @json($buildings);
         var userLat = @json($userLat);
         var userLon = @json($userLon);
-
+        var missionRadiusKm = @json($missionRadiusKm);
+        
         document.addEventListener('DOMContentLoaded', function () {
             var map = L.map('map', {
                 zoomControl: false,
@@ -205,8 +303,6 @@
 
             function loadPois() {
                 var currentZoom = map.getZoom();
-
-                // POIs erst ab Zoom-Level 15 anzeigen
                 if (currentZoom < 15) {
                     poiLayer.clearLayers();
                     return;
@@ -220,7 +316,6 @@
                     var maxLat = bounds.getNorthEast().lat;
                     var maxLon = bounds.getNorthEast().lng;
                     
-                    // POIs vom Backend-Endpunkt laden
                     fetch(`/api/pois?minLat=${minLat}&minLon=${minLon}&maxLat=${maxLat}&maxLon=${maxLon}`)
                         .then(response => response.json())
                         .then(data => {
@@ -228,7 +323,7 @@
                             data.forEach(poi => {
                                 var poiHtmlIcon = L.divIcon({
                                     className: 'custom-div-icon',
-                                    html: '<div class="poi-marker"><i class="fa-solid fa-store"></i></div>', // Beispiel-Icon
+                                    html: '<div class="poi-marker"><i class="fa-solid fa-store"></i></div>',
                                     iconSize: [35, 35],
                                     iconAnchor: [17, 35],
                                     popupAnchor: [0, -30]
@@ -240,12 +335,71 @@
                             });
                         })
                         .catch(error => console.error('Fehler beim Laden der POIs:', error));
-                }, 500); // 500ms Verzögerung, um Anfragen zu bündeln
+                }, 500);
             }
 
-            // POIs beim ersten Laden, bei Zoom und Bewegung aktualisieren
             map.on('moveend', loadPois);
             loadPois();
+            
+            var missionRadiusCircle = null;
+            document.getElementById('showRadiusBtn').addEventListener('click', function() {
+                if (missionRadiusCircle) {
+                    map.removeLayer(missionRadiusCircle);
+                    missionRadiusCircle = null;
+                } else {
+                    missionRadiusCircle = L.circle([userLat, userLon], {
+                        color: 'red',
+                        fillColor: '#f03',
+                        fillOpacity: 0.1,
+                        radius: missionRadiusKm * 1000
+                    }).addTo(map);
+                }
+            });
+
+            // VARIBALE FÜR DEN VORSCHAU-MARKER HINZUFÜGEN
+            var previewMarker = null;
+
+            var buildingFormContainer = document.getElementById('building-sidebar');
+            var closeSidebarBtn = document.getElementById('close-sidebar');
+            var buildingLatInput = document.getElementById('building-lat');
+            var buildingLonInput = document.getElementById('building-lon');
+            var submitBuildingBtn = document.getElementById('submit-building-btn');
+            var buildBuildingButton = document.querySelector('form[action="{{ route('buildings.store.from_map') }}"] button');
+            
+            buildBuildingButton.addEventListener('click', function(e) {
+                e.preventDefault();
+                buildingFormContainer.classList.add('open');
+                map.dragging.disable();
+                document.body.style.cursor = 'crosshair';
+            });
+
+            closeSidebarBtn.addEventListener('click', function() {
+                buildingFormContainer.classList.remove('open');
+                map.dragging.enable();
+                document.body.style.cursor = 'grab';
+                
+                // Entferne den Vorschau-Marker, wenn die Seitenleiste geschlossen wird
+                if (previewMarker) {
+                    map.removeLayer(previewMarker);
+                    previewMarker = null;
+                }
+            });
+
+            map.on('click', function(e) {
+                if (buildingFormContainer.classList.contains('open')) {
+                    buildingLatInput.value = e.latlng.lat;
+                    buildingLonInput.value = e.latlng.lng;
+                    submitBuildingBtn.disabled = false;
+                    
+                    // Entferne alten Marker, falls vorhanden
+                    if (previewMarker) {
+                        map.removeLayer(previewMarker);
+                    }
+                    
+                    // Erstelle einen neuen Vorschau-Marker an der Klick-Position
+                    previewMarker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map);
+                }
+            });
         });
     </script>
 </body>
