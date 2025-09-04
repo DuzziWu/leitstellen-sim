@@ -34,12 +34,14 @@ class BuildingController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
         ]);
 
         auth()->user()->buildings()->create([
             'name' => $request->input('name'),
-            'latitude' => 52.5200, // Beispielwerte für Berlin
-            'longitude' => 13.4050, // Später mit Kartenauswahl anpassen
+            'latitude' => $request->input('latitude'),
+            'longitude' => $request->input('longitude'),
         ]);
 
         return redirect()->route('buildings.index');

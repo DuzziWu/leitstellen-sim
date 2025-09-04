@@ -12,7 +12,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->make(\Illuminate\Foundation\Vite::class)->useBuildDirectory('.vite');        //
     }
 
     /**

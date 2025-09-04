@@ -4,6 +4,9 @@ use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\MissionController;
+use App\Http\Controllers\UserController;
+
+
 
 /*
 |--------------------------------------------------------------------------
@@ -34,6 +37,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/buildings/{building}', [BuildingController::class, 'show'])->name('buildings.show');
     Route::post('/buildings/{building}/purchase', [BuildingController::class, 'purchaseVehicle'])->name('buildings.purchase-vehicle');
     Route::get('/missions', [MissionController::class, 'index'])->name('missions.index');
+    Route::get('/select-city', [UserController::class, 'selectCity'])->name('user.select_city');
+    Route::post('/save-city', [UserController::class, 'saveCityByName'])->name('user.save_city_name');
+    Route::post('/buildings/store', [MissionController::class, 'storeBuilding'])->name('buildings.store.from_map');
+    Route::post('/missions/generate', [MissionController::class, 'generateMission'])->name('missions.generate');
+
+    
 });
 
 require __DIR__.'/auth.php';
