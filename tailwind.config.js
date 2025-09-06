@@ -1,23 +1,11 @@
-import defaultTheme from 'tailwindcss/defaultTheme';
-import forms from '@tailwindcss/forms';
-
 /** @type {import('tailwindcss').Config} */
-export default {
-    content: [
-        './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
-        './storage/framework/views/*.php',
-        './resources/views/**/*.blade.php',
-    ],
-
-    darkMode: 'class',
-
+module.exports = {
+    content: ["./resources/views/**/*.blade.php", "./resources/js/**/*.js"],
     theme: {
-        extend: {
-            fontFamily: {
-                sans: ['Figtree', ...defaultTheme.fontFamily.sans],
-            },
-        },
+        extend: {},
     },
-
-    plugins: [forms],
+    plugins: [],
+    safelist: [
+        "z-50", // Stellt sicher, dass diese Klasse immer generiert wird
+    ],
 };

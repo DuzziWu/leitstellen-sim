@@ -1,0 +1,70 @@
+[
+    {
+        "id": "hlf20",
+        "name": "Hilfeleistungslöschgruppenfahrzeug (HLF 20)",
+        "price": 250000,
+        "image": "/images/hlf20_transp.png",
+        "stats": {
+            "water_tank": "2000L",
+            "personnel": "1/8"
+        }
+    },
+    {
+        "id": "lf",
+        "name": "Löschfahrzeug (LF)",
+        "price": 200000,
+        "image": "/images/lf_transp.png",
+        "stats": {
+            "water_tank": "1600L",
+            "personnel": "1/8"
+        }
+    },
+    {
+        "id": "dlk",
+        "name": "Drehleiter mit Rettungskorb (DLK)",
+        "price": 350000,
+        "image": "/images/dlk_transp.png",
+        "stats": {
+            "ladder_length": "30m",
+            "personnel": "1/2"
+        }
+    },
+    {
+        "id": "tlf",
+        "name": "Tanklöschfahrzeug (TLF)",
+        "price": 220000,
+        "image": "/images/tlf_transp.png",
+        "stats": {
+            "water_tank": "4000L",
+            "personnel": "1/2"
+        }
+    },
+    {
+        "id": "elw1",
+        "name": "Einsatzleitwagen (ELW 1)",
+        "price": 120000,
+        "image": "/images/elw1_transp.png",
+        "stats": {
+            "personnel": "1/3"
+        }
+    },
+    {
+        "id": "mtf",
+        "name": "Mannschaftstransportfahrzeug (MTF)",
+        "price": 50000,
+        "image": "/images/mtf_transp.png",
+        "stats": {
+            "personnel": "1/8"
+        }
+    },
+    {
+        "id": "rw",
+        "name": "Rüstwagen (RW)",
+        "price": 280000,
+        "image": "/images/rw_transp.png",
+        "stats": {
+            "special_equipment": "Ja",
+            "personnel": "1/2"
+        }
+    }
+]

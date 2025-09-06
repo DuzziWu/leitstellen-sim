@@ -6,7 +6,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable
 {
@@ -16,21 +15,15 @@ class User extends Authenticatable
     /**
      * The attributes that are mass assignable.
      *
-     * @var list<string>
+     * @var array<int, string>
      */
     protected $fillable = [
         'name',
         'email',
         'password',
+        'home_city_lat',
+        'home_city_lon',
     ];
-
-    /**
-     * Get the buildings for the user.
-     */
-    public function buildings(): HasMany
-    {
-        return $this->hasMany(Building::class);
-    }
 
     /**
      * The attributes that should be hidden for serialization.
@@ -53,10 +46,5 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
-    }
-    
-    public function vehicles(): HasMany
-    {
-        return $this->hasMany(Vehicle::class);
     }
 }

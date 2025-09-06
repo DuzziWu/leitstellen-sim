@@ -1,49 +1,30 @@
 <?php
 
-// app/Models/Vehicle.php
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Vehicle extends Model
 {
     use HasFactory;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
-        'user_id',
-        'building_id',
-        'vehicle_type_id',
+        'vehicle_type',
+        'station_id',
+        'name',
+        'price',
+        'image',
+        'stats',
     ];
 
-    /**
-     * Get the user that owns the vehicle.
-     */
-    public function user(): BelongsTo
-    {
-        return $this->belongsTo(User::class);
-    }
+    // Füge dies hinzu, um das stats-Feld als JSON-Objekt zu speichern und zu lesen.
+    protected $casts = [
+        'stats' => 'array',
+    ];
 
-    /**
-     * Get the building that the vehicle belongs to.
-     */
-    public function building(): BelongsTo
+    public function station()
     {
-        return $this->belongsTo(Building::class);
-    }
-
-    /**
-     * Get the vehicle type associated with the vehicle.
-     */
-    public function vehicleType(): BelongsTo
-    {
-        return $this->belongsTo(VehicleType::class);
+        return $this->belongsTo(Station::class);
     }
 }

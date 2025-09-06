@@ -3,7 +3,6 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\Blade;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -12,7 +11,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->make(\Illuminate\Foundation\Vite::class)->useBuildDirectory('.vite');        //
+        //
     }
 
     /**
@@ -20,8 +19,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Blade::directive('vite', function ($expression) {
-            return "<?php echo \Vite::content($expression); ?>";
-        });
+        //
     }
 }

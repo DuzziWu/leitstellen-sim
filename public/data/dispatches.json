@@ -1,0 +1,30 @@
+[
+    {
+        "id": "small_fire",
+        "name": "Kleinbrand",
+        "reward": 1000,
+        "required_station_type": "Feuerwehr",
+        "location_type": "building"
+    },
+    {
+        "id": "car_accident",
+        "name": "Verkehrsunfall",
+        "reward": 1500,
+        "required_station_type": "Feuerwehr",
+        "location_type": "street"
+    },
+    {
+        "id": "medical_emergency",
+        "name": "Medizinischer Notfall",
+        "reward": 800,
+        "required_station_type": "rescue",
+        "location_type": "building"
+    },
+    {
+        "id": "field_fire",
+        "name": "Flächenbrand",
+        "reward": 2000,
+        "required_station_type": "Feuerwehr",
+        "location_type": "field"
+    }
+]
