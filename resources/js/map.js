@@ -1,10 +1,17 @@
+// Globale Variablen
 const csrfToken = document
     .querySelector('meta[name="csrf-token"]')
     .getAttribute("content");
-
 let currentStationId = null;
-let dispatchesData = null; // Variable für die Einsatz-JSON-Daten
-let currentDispatch = null; // Variable für den aktuell ausgewählten Einsatz
+let dispatchesData = null;
+let currentDispatch = null;
+var buildMode = false;
+var stationMarkers = [];
+var dispatchMarkers = [];
+
+//=======================================================================================================
+// KARTEN-INITIALISIERUNG & MARKER-ICONS
+//=======================================================================================================
 
 var map = L.map("map").setView([userLat, userLon], 13);
 
@@ -18,9 +25,6 @@ L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
 map.on("contextmenu", function (e) {
     e.originalEvent.preventDefault();
 });
-
-var buildMode = false;
-var stationMarkers = [];
 
 var buildModeIcon = L.divIcon({
     className: "custom-div-icon",
@@ -43,7 +47,14 @@ var dispatchIcon = L.divIcon({
     iconAnchor: [16, 16],
 });
 
-// Neue Funktion zur Verwaltung der Panels
+//=======================================================================================================
+// PANEL-FUNKTIONEN
+//=======================================================================================================
+
+/**
+ * Zeigt ein spezifisches Seitenfenster (Panel) an und verbirgt alle anderen.
+ * @param {string|null} panelId - Die ID des anzuzeigenden Panels oder null zum Schließen.
+ */
 function showPanel(panelId) {
     const panels = {
         "buy-panel": {
@@ -60,6 +71,10 @@ function showPanel(panelId) {
         },
         "dispatch-panel": {
             element: document.getElementById("dispatch-panel"),
+            width: "700px",
+        },
+        "alert-panel": {
+            element: document.getElementById("alert-panel"),
             width: "700px",
         },
     };
@@ -108,7 +123,14 @@ tabButtons.forEach((button) => {
     });
 });
 
-// Funktion zur Anzeige des richtigen Panels
+//=======================================================================================================
+// WACHEN-FUNKTIONEN
+//=======================================================================================================
+
+/**
+ * Zeigt das richtige Panel für eine Wache an (Kaufen oder Verwalten).
+ * @param {object} station - Das Wachen-Objekt.
+ */
 function showStationPanel(station) {
     currentStationId = station.id;
     if (station.user_id === userId) {
@@ -129,7 +151,360 @@ function showStationPanel(station) {
     }
 }
 
-// Funktion zum Laden der Einsatz-JSON-Daten
+/**
+ * Zeigt die Wachen auf der Karte an, basierend auf dem aktuellen Kartenausschnitt.
+ * @param {object[]} stationsData - Array von Wachen-Objekten.
+ */
+function showStations(stationsData) {
+    stationMarkers.forEach((marker) => map.removeLayer(marker));
+    stationMarkers = [];
+    if (stationsData.length === 0) return;
+    stationsData.forEach((station) => {
+        let marker;
+        if (parseInt(station.user_id) === userId) {
+            marker = L.marker([station.lat, station.lon], {
+                icon: playerStationIcon,
+            }).addTo(map);
+        } else if (buildMode && station.user_id === null) {
+            marker = L.marker([station.lat, station.lon], {
+                icon: buildModeIcon,
+            }).addTo(map);
+        }
+        if (marker) {
+            marker.on("click", () => showStationPanel(station));
+            stationMarkers.push(marker);
+        }
+    });
+}
+
+/**
+ * Ruft die Wachen im aktuellen Kartenausschnitt vom Server ab.
+ */
+async function loadStationsInView() {
+    const bounds = map.getBounds();
+    const minLat = bounds.getSouthWest().lat;
+    const minLon = bounds.getSouthWest().lng;
+    const maxLat = bounds.getNorthEast().lat;
+    const maxLon = bounds.getNorthEast().lng;
+    const url = `/api/stations?minLat=${minLat}&minLon=${minLon}&maxLat=${maxLat}&maxLon=${maxLon}`;
+    try {
+        const response = await fetch(url);
+        if (!response.ok)
+            throw new Error("Fehler beim Abrufen der Wachen-Daten");
+        const stations = await response.json();
+        showStations(stations);
+    } catch (error) {
+        console.error("Fehler:", error);
+    }
+}
+
+//=======================================================================================================
+// FAHRZEUG-FUNKTIONEN
+//=======================================================================================================
+
+/**
+ * Lädt die kaufbaren Fahrzeuge und füllt das Kauf-Panel.
+ */
+async function loadVehicles() {
+    try {
+        const response = await fetch("/data/vehicles_fire.json");
+        const vehicles = await response.json();
+        const vehicleList = document.getElementById("vehicle-list");
+        vehicleList.innerHTML = "";
+
+        vehicles.forEach((vehicle) => {
+            const statsHtml = Object.entries(vehicle.stats)
+                .map(([key, value]) => `${key.replace(/_/g, " ")}: ${value}`)
+                .join(" | ");
+
+            const vehicleElement = `
+                <div class="flex items-center p-4 mb-4 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer buy-vehicle-button" data-vehicle-id="${
+                    vehicle.id
+                }">
+                    <img src="${vehicle.image}" alt="${
+                vehicle.name
+            }" class="w-24 h-auto mr-4 rounded-md">
+                    <div class="flex-grow">
+                        <h4 class="text-lg font-bold">${vehicle.name}</h4>
+                        <p class="text-sm text-gray-600">Preis: ${vehicle.price.toLocaleString(
+                            "de-DE"
+                        )} €</p>
+                        <p class="text-xs text-gray-500">${statsHtml}</p>
+                    </div>
+                    <i class="fas fa-arrow-right text-gray-500"></i>
+                </div>
+            `;
+            vehicleList.innerHTML += vehicleElement;
+        });
+
+        document.querySelectorAll(".buy-vehicle-button").forEach((button) => {
+            button.addEventListener("click", async function () {
+                const vehicleType = this.dataset.vehicleId;
+                const url = `/api/stations/${currentStationId}/buy-vehicle`;
+
+                try {
+                    const response = await fetch(url, {
+                        method: "POST",
+                        headers: {
+                            "X-CSRF-TOKEN": csrfToken,
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ vehicle_type: vehicleType }),
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(
+                            data.error || "Fehler beim Kauf des Fahrzeugs."
+                        );
+                    }
+
+                    showPanel("manage-panel");
+                    document
+                        .querySelector('.tab-button[data-tab="vehicles"]')
+                        .click();
+                } catch (error) {
+                    console.error("Kauf-Fehler:", error);
+                    alert(error.message);
+                }
+            });
+        });
+    } catch (error) {
+        console.error("Fehler beim Laden der Fahrzeuge:", error);
+        document.getElementById("vehicle-list").innerHTML =
+            '<p class="text-red-500">Fahrzeuge konnten nicht geladen werden.</p>';
+    }
+}
+
+/**
+ * Lädt und zeigt die Fahrzeuge für das Management-Panel an.
+ */
+async function loadStationVehicles() {
+    const slotsContainer = document
+        .getElementById("vehicles-content")
+        .querySelector(".grid");
+    slotsContainer.innerHTML = "";
+    document.getElementById("vehicle-count").innerText = "0";
+
+    try {
+        const dbResponse = await fetch(
+            `/api/stations/${currentStationId}/vehicles`
+        );
+        if (!dbResponse.ok)
+            throw new Error("Fehler beim Abrufen der Fahrzeugdaten.");
+
+        const vehiclesFromDb = await dbResponse.json();
+        document.getElementById("vehicle-count").innerText =
+            vehiclesFromDb.length;
+
+        const jsonResponse = await fetch("/data/vehicles_fire.json");
+        const vehiclesJsonData = await jsonResponse.json();
+
+        const vehicles = vehiclesFromDb.map((dbVehicle) => {
+            const vehicleDetails = vehiclesJsonData.find(
+                (v) => v.id === dbVehicle.vehicle_type
+            );
+            if (vehicleDetails) {
+                return { ...dbVehicle, ...vehicleDetails };
+            }
+            return dbVehicle;
+        });
+
+        vehicles.forEach((vehicle) => {
+            const vehicleElement = `
+                <div class="vehicle-slot bg-gray-100 rounded-lg p-4 h-48 flex flex-col justify-center items-center relative">
+                    <button class="delete-vehicle-button absolute top-2 right-2 text-red-500 hover:text-red-700" data-vehicle-id="${vehicle.id}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    <img src="${vehicle.image}" alt="${vehicle.name}" class="w-24 h-auto mb-2 rounded-md">
+                    <p class="text-sm font-semibold text-gray-800">${vehicle.name}</p>
+                </div>
+            `;
+            slotsContainer.innerHTML += vehicleElement;
+        });
+
+        for (let i = vehicles.length; i < 4; i++) {
+            const addSlotElement = `
+                <div class="vehicle-slot bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-4 h-48 flex flex-col justify-center items-center cursor-pointer hover:bg-gray-200 transition-colors duration-200" data-slot-id="${
+                    i + 1
+                }">
+                    <i class="fas fa-plus text-3xl text-gray-400 mb-2"></i>
+                    <p class="text-sm text-gray-600 font-semibold">Fahrzeug kaufen</p>
+                </div>
+            `;
+            slotsContainer.innerHTML += addSlotElement;
+        }
+
+        document
+            .querySelectorAll(".vehicle-slot[data-slot-id]")
+            .forEach((slot) => {
+                slot.addEventListener("click", () => {
+                    showPanel("buy-vehicle-panel");
+                    loadVehicles();
+                });
+            });
+
+        document
+            .querySelectorAll(".delete-vehicle-button")
+            .forEach((button) => {
+                button.addEventListener("click", async (event) => {
+                    event.stopPropagation();
+                    const vehicleId = event.currentTarget.dataset.vehicleId;
+
+                    if (
+                        confirm(
+                            "Bist du sicher, dass du dieses Fahrzeug löschen möchtest?"
+                        )
+                    ) {
+                        try {
+                            const response = await fetch(
+                                `/api/stations/${currentStationId}/vehicles/${vehicleId}`,
+                                {
+                                    method: "DELETE",
+                                    headers: {
+                                        "X-CSRF-TOKEN": csrfToken,
+                                    },
+                                }
+                            );
+
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(
+                                    errorData.error ||
+                                        "Fehler beim Löschen des Fahrzeugs."
+                                );
+                            }
+
+                            alert("Fahrzeug erfolgreich gelöscht!");
+                            loadStationVehicles();
+                        } catch (error) {
+                            console.error("Lösch-Fehler:", error);
+                            alert(error.message);
+                        }
+                    }
+                });
+            });
+    } catch (error) {
+        console.error("Fehler beim Laden der Wachen-Fahrzeuge:", error);
+        slotsContainer.innerHTML =
+            '<p class="text-red-500">Fahrzeuge konnten nicht geladen werden.</p>';
+    }
+}
+
+/**
+ * Lädt die Wachen und Fahrzeuge des Spielers und zeigt sie im Alarmierungs-Panel an.
+ */
+async function loadStationsForAlertPanel() {
+    const stationList = document.getElementById("station-list");
+    stationList.innerHTML = '<p class="text-gray-500">Lade Wachen...</p>';
+
+    try {
+        const dbResponse = await fetch("/api/player-stations-with-vehicles");
+        if (!dbResponse.ok) {
+            throw new Error(
+                "Fehler beim Abrufen der Wachen- und Fahrzeugdaten."
+            );
+        }
+        const stations = await dbResponse.json();
+
+        const jsonResponse = await fetch("/data/vehicles_fire.json");
+        const vehiclesJsonData = await jsonResponse.json();
+
+        if (stations.length === 0) {
+            stationList.innerHTML =
+                '<p class="text-gray-500">Du besitzt noch keine Wachen, die alarmiert werden können.</p>';
+            return;
+        }
+
+        stationList.innerHTML = "";
+
+        for (const station of stations) {
+            const stationElement = document.createElement("div");
+            stationElement.className = "bg-gray-100 p-4 rounded-lg shadow-sm";
+
+            let vehiclesWithDetails = station.vehicles.map((dbVehicle) => {
+                const vehicleDetails = vehiclesJsonData.find(
+                    (v) => v.id === dbVehicle.vehicle_type
+                );
+                return vehicleDetails
+                    ? { ...dbVehicle, ...vehicleDetails }
+                    : dbVehicle;
+            });
+
+            let vehiclesHtml = "";
+            if (vehiclesWithDetails.length > 0) {
+                const distancePromises = vehiclesWithDetails.map(
+                    async (vehicle) => {
+                        const startCoords = `${station.lon},${station.lat}`;
+                        const endCoords = `${currentDispatch.lon},${currentDispatch.lat}`;
+                        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${startCoords};${endCoords}?overview=false`;
+
+                        try {
+                            const res = await fetch(osrmUrl);
+                            const data = await res.json();
+
+                            if (data.routes && data.routes.length > 0) {
+                                const distanceInMeters =
+                                    data.routes[0].distance;
+                                const distanceInKm = (
+                                    distanceInMeters / 1000
+                                ).toFixed(2);
+                                return { vehicle, distance: distanceInKm };
+                            } else {
+                                return { vehicle, distance: "n/a" };
+                            }
+                        } catch (error) {
+                            console.error(
+                                "Fehler bei der OSRM-API-Anfrage:",
+                                error
+                            );
+                            return { vehicle, distance: "Fehler" };
+                        }
+                    }
+                );
+
+                const results = await Promise.all(distancePromises);
+
+                vehiclesHtml = results
+                    .map(
+                        (result) => `
+                    <label class="flex items-center p-3 my-2 bg-white rounded-lg shadow-sm cursor-pointer hover:bg-gray-50">
+                        <input type="checkbox" class="form-checkbox text-blue-600 h-5 w-5 mr-3" value="${result.vehicle.id}">
+                        <div>
+                            <span class="font-semibold text-gray-800">${result.vehicle.name}</span>
+                            <p class="text-xs text-gray-500">Entfernung: ${result.distance} km</p>
+                        </div>
+                    </label>
+                `
+                    )
+                    .join("");
+            } else {
+                vehiclesHtml =
+                    '<p class="text-gray-500 text-sm">Keine Fahrzeuge an dieser Wache.</p>';
+            }
+
+            stationElement.innerHTML = `
+                <h3 class="font-bold text-lg mb-2 text-gray-900">${station.name}</h3>
+                <div class="space-y-2">
+                    ${vehiclesHtml}
+                </div>
+            `;
+            stationList.appendChild(stationElement);
+        }
+    } catch (error) {
+        console.error("Fehler:", error);
+        stationList.innerHTML = `<p class="text-red-500">Fehler beim Laden der Daten: ${error.message}</p>`;
+    }
+}
+
+//=======================================================================================================
+// EINSATZ-FUNKTIONEN
+//=======================================================================================================
+
+/**
+ * Funktion zum Laden der Einsatz-JSON-Daten.
+ */
 async function loadDispatchData() {
     try {
         const response = await fetch("/data/dispatches.json");
@@ -141,7 +516,10 @@ async function loadDispatchData() {
     }
 }
 
-// Funktion zur Anzeige des Einsatz-Panels
+/**
+ * Funktion zur Anzeige des Einsatz-Panels.
+ * @param {object} dispatch - Das Einsatz-Objekt.
+ */
 function showDispatchPanel(dispatch) {
     currentDispatch = dispatch;
 
@@ -168,318 +546,9 @@ function showDispatchPanel(dispatch) {
     showPanel("dispatch-panel");
 }
 
-// Funktion zum Laden der kaufbaren Fahrzeuge
-async function loadVehicles() {
-    try {
-        const response = await fetch("/data/vehicles_fire.json");
-        const vehicles = await response.json();
-        const vehicleList = document.getElementById("vehicle-list");
-        vehicleList.innerHTML = "";
-
-        vehicles.forEach((vehicle) => {
-            const statsHtml = Object.entries(vehicle.stats)
-                .map(([key, value]) => `${key.replace(/_/g, " ")}: ${value}`)
-                .join(" | ");
-
-            const vehicleElement = `
-                        <div class="flex items-center p-4 mb-4 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer buy-vehicle-button" data-vehicle-id="${
-                            vehicle.id
-                        }">
-                            <img src="${vehicle.image}" alt="${
-                vehicle.name
-            }" class="w-24 h-auto mr-4 rounded-md">
-                            <div class="flex-grow">
-                                <h4 class="text-lg font-bold">${
-                                    vehicle.name
-                                }</h4>
-                                <p class="text-sm text-gray-600">Preis: ${vehicle.price.toLocaleString(
-                                    "de-DE"
-                                )} €</p>
-                                <p class="text-xs text-gray-500">${statsHtml}</p>
-                            </div>
-                            <i class="fas fa-arrow-right text-gray-500"></i>
-                        </div>
-                    `;
-            vehicleList.innerHTML += vehicleElement;
-        });
-
-        document.querySelectorAll(".buy-vehicle-button").forEach((button) => {
-            button.addEventListener("click", async function () {
-                const vehicleType = this.dataset.vehicleId;
-                const url = `/stations/${currentStationId}/buy-vehicle`;
-
-                try {
-                    const response = await fetch(url, {
-                        method: "POST",
-                        headers: {
-                            "X-CSRF-TOKEN": csrfToken,
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({ vehicle_type: vehicleType }),
-                    });
-
-                    const data = await response.json();
-
-                    if (!response.ok) {
-                        throw new Error(
-                            data.error || "Fehler beim Kauf des Fahrzeugs."
-                        );
-                    }
-
-                    // Schließt das Kauf-Panel und navigiert zurück zum Verwaltungs-Panel
-                    showPanel("manage-panel");
-                    document
-                        .querySelector('.tab-button[data-tab="vehicles"]')
-                        .click();
-                } catch (error) {
-                    console.error("Kauf-Fehler:", error);
-                    alert(error.message);
-                }
-            });
-        });
-    } catch (error) {
-        console.error("Fehler beim Laden der Fahrzeuge:", error);
-        document.getElementById("vehicle-list").innerHTML =
-            '<p class="text-red-500">Fahrzeuge konnten nicht geladen werden.</p>';
-    }
-}
-
-// Funktion zum Laden und Anzeigen der Fahrzeuge für das Management-Panel
-async function loadStationVehicles() {
-    const slotsContainer = document
-        .getElementById("vehicles-content")
-        .querySelector(".grid");
-    slotsContainer.innerHTML = "";
-    document.getElementById("vehicle-count").innerText = "0";
-
-    try {
-        const response = await fetch(
-            `/api/stations/${currentStationId}/vehicles`
-        );
-        if (!response.ok)
-            throw new Error("Fehler beim Abrufen der Fahrzeugdaten.");
-
-        const vehicles = await response.json();
-        document.getElementById("vehicle-count").innerText = vehicles.length;
-
-        // Slots für jedes vorhandene Fahrzeug rendern
-        vehicles.forEach((vehicle) => {
-            const vehicleElement = `
-                            <div class="vehicle-slot bg-gray-100 rounded-lg p-4 h-48 flex flex-col justify-center items-center relative">
-                                <button class="delete-vehicle-button absolute top-2 right-2 text-red-500 hover:text-red-700" data-vehicle-id="${vehicle.id}">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                                <img src="${vehicle.image}" alt="${vehicle.name}" class="w-24 h-auto mb-2 rounded-md">
-                                <p class="text-sm font-semibold text-gray-800">${vehicle.name}</p>
-                            </div>
-                        `;
-            slotsContainer.innerHTML += vehicleElement;
-        });
-
-        // "Fahrzeug kaufen"-Slots für die restlichen Plätze rendern
-        for (let i = vehicles.length; i < 4; i++) {
-            const addSlotElement = `
-                            <div class="vehicle-slot bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-4 h-48 flex flex-col justify-center items-center cursor-pointer hover:bg-gray-200 transition-colors duration-200" data-slot-id="${
-                                i + 1
-                            }">
-                                <i class="fas fa-plus text-3xl text-gray-400 mb-2"></i>
-                                <p class="text-sm text-gray-600 font-semibold">Fahrzeug kaufen</p>
-                            </div>
-                        `;
-            slotsContainer.innerHTML += addSlotElement;
-        }
-
-        // Event-Listener für die neuen "Fahrzeug kaufen"-Slots
-        document
-            .querySelectorAll(".vehicle-slot[data-slot-id]")
-            .forEach((slot) => {
-                slot.addEventListener("click", () => {
-                    showPanel("buy-vehicle-panel");
-                    loadVehicles();
-                });
-            });
-
-        // NEUER EVENT-LISTENER FÜR DEN LÖSCH-BUTTON
-        document
-            .querySelectorAll(".delete-vehicle-button")
-            .forEach((button) => {
-                button.addEventListener("click", async (event) => {
-                    event.stopPropagation(); // Verhindert, dass der Klick auf den Slot übergeht
-                    const vehicleId = event.currentTarget.dataset.vehicleId;
-
-                    if (
-                        confirm(
-                            "Bist du sicher, dass du dieses Fahrzeug löschen möchtest?"
-                        )
-                    ) {
-                        try {
-                            const response = await fetch(
-                                `/stations/${currentStationId}/vehicles/${vehicleId}`,
-                                {
-                                    method: "DELETE",
-                                    headers: {
-                                        "X-CSRF-TOKEN": csrfToken,
-                                    },
-                                }
-                            );
-
-                            if (!response.ok) {
-                                const errorData = await response.json();
-                                throw new Error(
-                                    errorData.error ||
-                                        "Fehler beim Löschen des Fahrzeugs."
-                                );
-                            }
-
-                            alert("Fahrzeug erfolgreich gelöscht!");
-                            loadStationVehicles(); // Lade die Stellplätze neu
-                        } catch (error) {
-                            console.error("Lösch-Fehler:", error);
-                            alert(error.message);
-                        }
-                    }
-                });
-            });
-    } catch (error) {
-        console.error("Fehler beim Laden der Wachen-Fahrzeuge:", error);
-        slotsContainer.innerHTML =
-            '<p class="text-red-500">Fahrzeuge konnten nicht geladen werden.</p>';
-    }
-}
-
-// Event-Listener für Schließen-Buttons
-document
-    .getElementById("close-buy-panel-button")
-    .addEventListener("click", () => showPanel(null));
-document
-    .getElementById("close-manage-panel-button")
-    .addEventListener("click", () => showPanel(null));
-document
-    .getElementById("close-buy-vehicle-panel-button")
-    .addEventListener("click", () => showPanel(null));
-document
-    .getElementById("close-dispatch-panel-button")
-    .addEventListener("click", () => showPanel(null));
-
-// Event-Listener für den neuen Zurück-Button
-document
-    .getElementById("back-to-manage-button")
-    .addEventListener("click", function () {
-        showPanel("manage-panel");
-        document.querySelector('.tab-button[data-tab="vehicles"]').click();
-    });
-
-// Event-Listener für den neuen "Einsatz generieren"-Button
-const generateDispatchBtn = document.getElementById("generate-dispatch-btn");
-if (generateDispatchBtn) {
-    generateDispatchBtn.addEventListener("click", function () {
-        fetch("/dispatches/generate", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-CSRF-TOKEN": csrfToken,
-            },
-        })
-            .then((response) => {
-                if (!response.ok) {
-                    return response.json().then((err) => {
-                        throw new Error(err.error);
-                    });
-                }
-                return response.json();
-            })
-            .then((data) => {
-                alert(data.message);
-                // Hier wird später die Logik zum Anzeigen des neuen Einsatzes hinzugefügt
-            })
-            .catch((error) => {
-                alert("Fehler: " + error.message);
-            });
-    });
-}
-
-function showStations(stationsData) {
-    stationMarkers.forEach((marker) => map.removeLayer(marker));
-    stationMarkers = [];
-    if (stationsData.length === 0) return;
-    stationsData.forEach((station) => {
-        let marker;
-        if (station.user_id === userId) {
-            marker = L.marker([station.lat, station.lon], {
-                icon: playerStationIcon,
-            }).addTo(map);
-        } else if (buildMode && station.user_id === null) {
-            marker = L.marker([station.lat, station.lon], {
-                icon: buildModeIcon,
-            }).addTo(map);
-        }
-        if (marker) {
-            marker.on("click", () => showStationPanel(station));
-            stationMarkers.push(marker);
-        }
-    });
-}
-
-async function loadStationsInView() {
-    const bounds = map.getBounds();
-    const minLat = bounds.getSouthWest().lat;
-    const minLon = bounds.getSouthWest().lng;
-    const maxLat = bounds.getNorthEast().lat;
-    const maxLon = bounds.getNorthEast().lng;
-    const url = `/api/stations?minLat=${minLat}&minLon=${minLon}&maxLat=${maxLat}&maxLon=${maxLon}`;
-    try {
-        const response = await fetch(url);
-        if (!response.ok)
-            throw new Error("Fehler beim Abrufen der Wachen-Daten");
-        const stations = await response.json();
-        showStations(stations);
-    } catch (error) {
-        console.error("Fehler:", error);
-    }
-}
-
-map.on("moveend", loadStationsInView);
-
-document
-    .getElementById("build-mode-button")
-    .addEventListener("click", function () {
-        buildMode = !buildMode;
-        if (buildMode) {
-            this.innerHTML = '<i class="fas fa-times"></i>';
-            loadStationsInView();
-        } else {
-            this.innerHTML = '<i class="fas fa-hammer"></i>';
-            loadStationsInView();
-        }
-    });
-
-document
-    .getElementById("buy-station-button")
-    .addEventListener("click", async function () {
-        const stationId = this.dataset.stationId;
-        const url = `/stations/${stationId}/buy`;
-        try {
-            const response = await fetch(url, {
-                method: "POST",
-                headers: {
-                    "X-CSRF-TOKEN": csrfToken,
-                    "Content-Type": "application/json",
-                },
-            });
-            if (!response.ok) throw new Error("Fehler beim Kauf der Wache.");
-            alert("Wache erfolgreich gekauft!");
-            showPanel(null);
-            loadStationsInView();
-        } catch (error) {
-            console.error("Kauf-Fehler:", error);
-            alert("Es ist ein Fehler aufgetreten. Bitte versuche es erneut.");
-        }
-    });
-
-loadStationsInView();
-
-var dispatchMarkers = [];
-
+/**
+ * Ruft die Einsätze vom Server ab und zeigt sie auf der Karte an.
+ */
 async function loadDispatches() {
     try {
         const response = await fetch("/api/dispatches");
@@ -509,8 +578,182 @@ async function loadDispatches() {
     }
 }
 
+//=======================================================================================================
+// EVENT-LISTENER
+//=======================================================================================================
+
+// Event-Listener für den "Einsatz generieren"-Button
+document
+    .getElementById("generate-dispatch-btn")
+    .addEventListener("click", function () {
+        fetch("/api/dispatches/generate", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-TOKEN": csrfToken,
+            },
+        })
+            .then((response) => {
+                if (!response.ok) {
+                    return response.json().then((err) => {
+                        throw new Error(err.error);
+                    });
+                }
+                return response.json();
+            })
+            .then((data) => {
+                alert(data.message);
+                loadDispatches();
+            })
+            .catch((error) => {
+                alert("Fehler: " + error.message);
+            });
+    });
+
+// Event-Listener für den "Fahrzeuge alarmieren"-Button im dispatch-panel
+document.getElementById("alert-button").addEventListener("click", function () {
+    if (currentDispatch) {
+        document.getElementById("alert-dispatch-id").innerText =
+            currentDispatch.id;
+        showPanel("alert-panel");
+        loadStationsForAlertPanel();
+    } else {
+        alert("Kein Einsatz ausgewählt.");
+    }
+});
+
+// Event-Listener für den Schließen-Button des neuen Panels
+document
+    .getElementById("close-alert-panel-button")
+    .addEventListener("click", () => showPanel(null));
+
+// Event-Listener für Schließen-Buttons
+document
+    .getElementById("close-buy-panel-button")
+    .addEventListener("click", () => showPanel(null));
+document
+    .getElementById("close-manage-panel-button")
+    .addEventListener("click", () => showPanel(null));
+document
+    .getElementById("close-buy-vehicle-panel-button")
+    .addEventListener("click", () => showPanel(null));
+document
+    .getElementById("close-dispatch-panel-button")
+    .addEventListener("click", () => showPanel(null));
+
+// Event-Listener für den neuen Zurück-Button
+document
+    .getElementById("back-to-manage-button")
+    .addEventListener("click", function () {
+        showPanel("manage-panel");
+        document.querySelector('.tab-button[data-tab="vehicles"]').click();
+    });
+
+// Event-Listener für den Baumodus-Button
+document
+    .getElementById("build-mode-button")
+    .addEventListener("click", function () {
+        buildMode = !buildMode;
+        if (buildMode) {
+            this.innerHTML = '<i class="fas fa-times"></i>';
+            loadStationsInView();
+        } else {
+            this.innerHTML = '<i class="fas fa-hammer"></i>';
+            loadStationsInView();
+        }
+    });
+
+// Event-Listener für den Kauf-Button
+document
+    .getElementById("buy-station-button")
+    .addEventListener("click", async function () {
+        const stationId = this.dataset.stationId;
+        const url = `/stations/${stationId}/buy`;
+        try {
+            const response = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "X-CSRF-TOKEN": csrfToken,
+                    "Content-Type": "application/json",
+                },
+            });
+            if (!response.ok) throw new Error("Fehler beim Kauf der Wache.");
+            alert("Wache erfolgreich gekauft!");
+            showPanel(null);
+            loadStationsInView();
+        } catch (error) {
+            console.error("Kauf-Fehler:", error);
+            alert("Es ist ein Fehler aufgetreten. Bitte versuche es erneut.");
+        }
+    });
+
+// Event-Listener für den "Ausgewählte Fahrzeuge zum Einsatz schicken"-Button
+document
+    .getElementById("send-alert-button")
+    .addEventListener("click", async function () {
+        // Sammle alle ausgewählten Fahrzeug-IDs
+        const selectedVehicleIds = Array.from(
+            document.querySelectorAll(
+                '#alert-panel input[type="checkbox"]:checked'
+            )
+        )
+            .map((checkbox) => checkbox.value)
+            .filter((id) => id); // Stellt sicher, dass nur gültige IDs gesammelt werden
+
+        // Überprüfe, ob Fahrzeuge ausgewählt wurden
+        if (selectedVehicleIds.length === 0) {
+            alert("Bitte wähle mindestens ein Fahrzeug aus.");
+            return;
+        }
+
+        // Stelle sicher, dass ein Einsatz ausgewählt ist
+        if (!currentDispatch) {
+            alert(
+                "Kein Einsatz ausgewählt. Bitte wähle einen Einsatz aus, um Fahrzeuge zu alarmieren."
+            );
+            return;
+        }
+
+        // Sende die Daten an den Server
+        try {
+            const response = await fetch(
+                `/api/dispatches/${currentDispatch.id}/alert-vehicles`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-TOKEN": csrfToken,
+                    },
+                    body: JSON.stringify({
+                        vehicle_ids: selectedVehicleIds,
+                    }),
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(
+                    data.error || "Fehler beim Alarmieren der Fahrzeuge."
+                );
+            }
+
+            // Erfolg: Schließe das Panel und lade die Einsätze neu
+            alert(data.message);
+            showPanel(null);
+            loadDispatches();
+        } catch (error) {
+            console.error("Alarmierungs-Fehler:", error);
+            alert("Fehler: " + error.message);
+        }
+    });
+
+//=======================================================================================================
+// STARTFUNKTIONEN
+//=======================================================================================================
+
 // Starte Funktionen beim Laden der Seite
 loadStationsInView();
-loadDispatchData(); // Lädt die statischen Einsatz-Daten
+loadDispatchData();
 loadDispatches();
-setInterval(loadDispatches, 10000); // Lädt Einsätze alle 10 Sekunden neu
+setInterval(loadDispatches, 10000);

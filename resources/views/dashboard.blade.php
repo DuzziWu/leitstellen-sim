@@ -49,6 +49,7 @@
     <x-manage-panel />
     <x-buy-vehicle-panel />
     <x-dispatch-panel />
+    <x-alert-panel />
 
 </body>
 
