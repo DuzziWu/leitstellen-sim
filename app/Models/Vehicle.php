@@ -17,6 +17,8 @@ class Vehicle extends Model
         'price',
         'image',
         'stats',
+        'status',
+        'dispatch_id',
     ];
 
     // Füge dies hinzu, um das stats-Feld als JSON-Objekt zu speichern und zu lesen.
@@ -27,5 +29,10 @@ class Vehicle extends Model
     public function station()
     {
         return $this->belongsTo(Station::class);
+    }
+
+    public function dispatch()
+    {
+        return $this->belongsTo(Dispatch::class);
     }
 }

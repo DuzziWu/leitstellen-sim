@@ -23,6 +23,7 @@ class User extends Authenticatable
         'password',
         'home_city_lat',
         'home_city_lon',
+        'credits',
     ];
 
     /**

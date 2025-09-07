@@ -23,6 +23,7 @@
         const userLat = {{ auth()->user()->home_city_lat ?? 52.5200 }};
         const userLon = {{ auth()->user()->home_city_lon ?? 13.4050 }};
         const userId = {{ auth()->id() }};
+        const userCredits = {{ auth()->user()->credits ?? 0 }};
     </script>
 
     @vite('resources/js/map.js')
@@ -31,6 +32,13 @@
 <body class="bg-gray-900 text-white font-sans">
     {{-- Hauptkarte: Das zentrale Element der Benutzeroberfläche --}}
     <div id="map" class="h-screen w-screen absolute top-0 left-0"></div>
+
+    {{-- Credits-Anzeige und Bedienelemente auf der Karte --}}
+    <div class="fixed top-4 left-4 z-50" style="z-index: 1000;">
+        <div class="mb-2 px-3 py-2 bg-gray-800 bg-opacity-90 text-white rounded-lg shadow-lg text-sm">
+            Credits: <span id="credits-display">0 €</span>
+        </div>
+    </div>
 
     {{-- Bedienelemente auf der Karte: Buttons für Baumodus und Einsatzgenerierung --}}
     <div class="fixed top-4 right-4 z-50" style="z-index: 1000;">

@@ -14,6 +14,8 @@ return new class extends Migration {
             $table->string('vehicle_type'); // Speichert den Typ (z.B. 'lf', 'tlf')
             $table->foreignId('station_id')->nullable()->constrained()->onDelete('set null'); // FK zur Wache
             $table->foreignId('user_id')->nullable()->constrained()->onDelete('cascade'); // FK zum Benutzer
+            $table->string('status')->default('available');
+            $table->unsignedBigInteger('dispatch_id')->nullable();
             $table->timestamps();
         });
     }

@@ -260,6 +260,16 @@ async function loadVehicles() {
                         );
                     }
 
+                    // Credits aktualisieren
+                    try {
+                        if (data && typeof data.credits !== "undefined") {
+                            const creditsEl = document.getElementById("credits-display");
+                            if (creditsEl) {
+                                creditsEl.innerText = Number(data.credits).toLocaleString("de-DE") + " €";
+                            }
+                        }
+                    } catch (_) {}
+
                     showPanel("manage-panel");
                     document
                         .querySelector('.tab-button[data-tab="vehicles"]')
@@ -757,3 +767,11 @@ loadStationsInView();
 loadDispatchData();
 loadDispatches();
 setInterval(loadDispatches, 10000);
+
+// Credits initialisieren
+try {
+    const creditsEl = document.getElementById("credits-display");
+    if (creditsEl && typeof userCredits !== "undefined") {
+        creditsEl.innerText = Number(userCredits).toLocaleString("de-DE") + " €";
+    }
+} catch (e) {}

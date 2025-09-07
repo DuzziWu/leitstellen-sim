@@ -80,15 +80,30 @@ class StationController extends Controller
             return response()->json(['error' => 'Kein freier Stellplatz vorhanden.'], 400);
         }
 
+        // Prüfe Guthaben des Nutzers
+        $user = Auth::user();
+        $price = (int) ($selectedVehicleData['price'] ?? 0);
+        if ($user->credits < $price) {
+            return response()->json(['error' => 'Nicht genug Credits.'], 400);
+        }
+
+        // Ziehe Credits ab
+        $user->credits = $user->credits - $price;
+        $user->save();
+
         // Neues Fahrzeug erstellen und in der Datenbank speichern
         $vehicle = new Vehicle([
             'vehicle_type' => $selectedVehicleData['id'],
             'station_id' => $station->id,
             'user_id' => Auth::id(),
+            'status' => 'available',
         ]);
         $vehicle->save();
 
-        return response()->json(['message' => 'Fahrzeug erfolgreich gekauft!'], 200);
+        return response()->json([
+            'message' => 'Fahrzeug erfolgreich gekauft!',
+            'credits' => $user->credits,
+        ], 200);
     }
 
     /**
